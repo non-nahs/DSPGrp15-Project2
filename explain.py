@@ -2,7 +2,7 @@ import psycopg2
 import json
 
 def connect_db():
-    """ Function to create a connection to the database. Modify with your database details. """
+    """ Modify according to how you set up your database. """
     return psycopg2.connect(
         dbname='TPC-H', 
         user='postgres', 

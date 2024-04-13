@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QTextEdit, QPushButton, QVBoxLayout, QWidget, QTreeView,
+    QApplication, QMainWindow, QTextEdit, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QTreeView,
     QGraphicsItem, QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsView, QGraphicsScene,
     QGraphicsLineItem)
 from PySide6.QtCore import QRectF, Qt
@@ -16,12 +16,17 @@ class GraphNode(QGraphicsItem):
         
         # Add a text item as a child of this item
         self.text_item = QGraphicsTextItem(label, self)
+        self.text_item.setDefaultTextColor(QColor("black"))
+        self.text_item.setZValue(1)
         rect = self.text_item.boundingRect()
         
         # Optionally add an ellipse or rectangle around the text
-        self.background_item = QGraphicsEllipseItem(-rect.width()/2, -rect.height()/2, rect.width(), rect.height(), self)
-        self.background_item.setBrush(QBrush(QColor(255, 255, 255)))
-        self.background_item.setPen(QPen(QColor(255, 255, 255)))
+        self.background_item = QGraphicsEllipseItem(-(rect.width()+20)/2, -(rect.height()+20)/2, rect.width()+20, rect.height()+20, self)
+        self.background_item.setBrush(QBrush(QColor('white')))
+        self.background_item.setPen(QPen(QColor('white')))
+        self.background_item.setZValue(0.8)
+
+        self.text_item.setPos(-rect.width() / 2, -rect.height() /2)
 
     def boundingRect(self):
         return self.background_item.boundingRect()
@@ -65,28 +70,31 @@ class MainWindow(QMainWindow):
         
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
-        layout = QVBoxLayout(central_widget)
+        main_layout = QHBoxLayout(central_widget)
 
         self.scene = QGraphicsScene()
         self.view = GraphicsView(self.scene)
         self.view.setRenderHint(QPainter.Antialiasing)  # For smoother graphics
-        # self.view.setBackgroundBrush(QBrush(Qt.black))  
-        layout.addWidget(self.view)
+        self.view.setBackgroundBrush(QBrush(Qt.black))  
+        main_layout.addWidget(self.view)
+
+        right_layout = QVBoxLayout()
 
         self.query_input = QTextEdit()
         self.query_input.setPlaceholderText("Enter your SQL query here...")
-        layout.addWidget(self.query_input)
+        right_layout.addWidget(self.query_input)
 
         self.btn_submit = QPushButton('Explain Cost')
         self.btn_submit.clicked.connect(self.onSubmit)
-        layout.addWidget(self.btn_submit)
+        right_layout.addWidget(self.btn_submit)
 
         self.tree_view = QTreeView()
         self.tree_model = QStandardItemModel()
         self.tree_model.setHorizontalHeaderLabels(['Node', 'Cost', 'Rows', 'Width'])
         self.tree_view.setModel(self.tree_model)
-        layout.addWidget(self.tree_view)
+        right_layout.addWidget(self.tree_view)
         
+        main_layout.addLayout(right_layout)
         # self.result_display = QTextEdit()
         # self.result_display.setReadOnly(True)
         # layout.addWidget(self.result_display)
@@ -107,12 +115,14 @@ class MainWindow(QMainWindow):
         # Create the graphics item for this node
         node_graphics_item = GraphNode(node['Node Type'])
         node_graphics_item.setPos(x, y)
+        node_graphics_item.setZValue(1)
         self.scene.addItem(node_graphics_item)
 
         # If this is not the root node, draw an edge from the parent
         if parent_graphics_item is not None:
             line = QGraphicsLineItem(parent_graphics_item.x(), parent_graphics_item.y(), x, y)
-            line.setPen(QPen(QColor(255, 255, 255)))
+            line.setPen(QPen(QColor('white')))
+            line.setZValue(0.2)
             self.scene.addItem(line)
 
         # Recursively add child nodes
