@@ -1,12 +1,34 @@
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QTextEdit, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QTreeView,
-    QGraphicsItem, QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsView, QGraphicsScene,
-    QGraphicsLineItem)
+    QApplication,
+    QMainWindow,
+    QTextEdit,
+    QPushButton,
+    QVBoxLayout,
+    QHBoxLayout,
+    QWidget,
+    QTreeView,
+    QGraphicsItem,
+    QGraphicsTextItem,
+    QGraphicsEllipseItem,
+    QGraphicsView,
+    QGraphicsScene,
+    QGraphicsLineItem,
+    QLabel
+)
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import (
-    QStandardItemModel, QStandardItem, QBrush, QColor, QPen, QWheelEvent, QPainter, QMouseEvent)
+    QStandardItemModel,
+    QStandardItem,
+    QBrush,
+    QColor,
+    QPen,
+    QWheelEvent,
+    QPainter,
+    QMouseEvent
+)
 import sys, json
-from explain import explain_query, extract_nodes
+from explain import *
+
 
 class GraphNode(QGraphicsItem):
     def __init__(self, label, parent=None):
@@ -35,6 +57,7 @@ class GraphNode(QGraphicsItem):
         # The painting is handled by the child items
         pass
 
+
 class GraphicsView(QGraphicsView):
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
@@ -58,6 +81,7 @@ class GraphicsView(QGraphicsView):
         if event.button() == Qt.MiddleButton:
             self.setDragMode(QGraphicsView.NoDrag)
         super().mouseReleaseEvent(event)
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -93,6 +117,10 @@ class MainWindow(QMainWindow):
         self.tree_model.setHorizontalHeaderLabels(['Node', 'Cost', 'Rows', 'Width'])
         self.tree_view.setModel(self.tree_model)
         right_layout.addWidget(self.tree_view)
+
+        self.explain_label = QTextEdit("Query Execution Plan:")
+        self.explain_label.setReadOnly(True)
+        right_layout.addWidget(self.explain_label)
         
         main_layout.addLayout(right_layout)
         # self.result_display = QTextEdit()
@@ -100,9 +128,26 @@ class MainWindow(QMainWindow):
         # layout.addWidget(self.result_display)
 
     def onSubmit(self):
+        if self.query_input.toPlainText().strip() == "":
+            self.explain_label.setPlainText("Please enter a query to explain.")
+            self.explain_label.setStyleSheet("color: red;")
+            return
+        costs = []
         sql_query = self.query_input.toPlainText().strip()
         plan = explain_query(sql_query)
         self.showPlan(plan)
+
+        types = extract_node_types(json.loads(plan)[0]['Plan'])
+        for node_type in types:
+            costs.append(get_cost_estimate(node_type))
+
+        output_str = ""
+
+        for i, node_type in enumerate(types):
+            output_str += f"{node_type}: {costs[i]}\n"
+
+        self.explain_label.setPlainText(f"{output_str}")
+
         # formatted_plan = format_plan(plan)
         # self.showPlan(formatted_plan)
         # explanation = explain_query(sql_query)
@@ -181,11 +226,13 @@ class MainWindow(QMainWindow):
             for subplan in node['Plans']:
                 self.load_nodes(subplan, node_item)
 
+
 def main():
     app = QApplication(sys.argv)
     main_window = MainWindow()
     main_window.show()
     sys.exit(app.exec())
+
 
 if __name__ == '__main__':
     main()
