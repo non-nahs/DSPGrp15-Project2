@@ -70,6 +70,19 @@ def extract_nodes(plan, parent_item=None):
     return node_data
 
 
+def flatten_list(nested_list):
+    """
+    Flattens a nested list into a single-level list.
+    """
+    flattened = []
+    for item in nested_list:
+        if isinstance(item, list):
+            flattened.extend(flatten_list(item))
+        else:
+            flattened.append(item)
+    return flattened
+
+
 def extract_node_types(plan):
     """ Extract the node types from the nested dictionary representation of the plan tree. """
     # This function extracts the node types from the nested dictionary
@@ -80,21 +93,22 @@ def extract_node_types(plan):
         for subplan in plan['Plans']:
             node_types.append(extract_node_types(subplan))
 
-    if len(node_types) == 1:
-        return node_types[0]
-    else:
-        return node_types
+    return flatten_list(node_types)
 
 
 def get_cost_estimate(node_type):
     match node_type:
         case 'Seq Scan':
+            # B(R)
             return 100
         case 'Index Scan':
+            # B(R) + log2(B(R))
             return 200
         case 'Hash Join':
+            # B(R) + B(S)
             return 300
         case 'Nested Loop':
+            # B(R) * B(S)
             return 400
         case _:
             return 500
