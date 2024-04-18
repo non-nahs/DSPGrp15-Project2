@@ -29,6 +29,14 @@ from PySide6.QtGui import (
 import sys, json
 from explain import *
 
+cost_params = {
+    'seq_page_cost': 1.0,
+    'random_page_cost': 4.0,
+    'cpu_tuple_cost': 0.01,
+    'cpu_operator_cost': 0.0025,
+    'cpu_index_tuple_cost': 0.005,
+    'cpu_hash_cost': 0.0025
+}
 
 class GraphNode(QGraphicsItem):
     def __init__(self, label, parent=None):
@@ -90,7 +98,7 @@ class MainWindow(QMainWindow):
 
     def initUI(self):
         self.setWindowTitle("QEP Cost Estimator")
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 1200, 800) # setGeometry(x, y, w, h)
         
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
@@ -114,7 +122,7 @@ class MainWindow(QMainWindow):
 
         self.tree_view = QTreeView()
         self.tree_model = QStandardItemModel()
-        self.tree_model.setHorizontalHeaderLabels(['Node', 'Cost', 'Rows', 'Width'])
+        self.tree_model.setHorizontalHeaderLabels(['Node', 'Cost', 'Planned Rows', 'Actual Rows', 'Actual Total Time'])
         self.tree_view.setModel(self.tree_model)
         right_layout.addWidget(self.tree_view)
 
@@ -132,26 +140,41 @@ class MainWindow(QMainWindow):
             self.explain_label.setPlainText("Please enter a query to explain.")
             self.explain_label.setStyleSheet("color: red;")
             return
-        costs = []
+        # costs_list = []
+
         sql_query = self.query_input.toPlainText().strip()
         plan = explain_query(sql_query)
+
+        # print(plan)
         self.showPlan(plan)
 
-        types = extract_node_types(json.loads(plan)[0]['Plan'])
-        for node_type in types:
-            costs.append(get_cost_estimate(node_type))
+        self.display_explanation(plan)
+        # types = extract_node_types(json.loads(plan)[0]['Plan'])
 
-        output_str = ""
-
-        for i, node_type in enumerate(types):
-            output_str += f"{node_type}: {costs[i]}\n"
-
-        self.explain_label.setPlainText(f"{output_str}")
-
+        # for node_type in types:
+        #     costs_list.append(get_cost_estimate(node_type))
+        
+        # 
         # formatted_plan = format_plan(plan)
         # self.showPlan(formatted_plan)
         # explanation = explain_query(sql_query)
         # self.result_display.setPlainText(plan)
+
+    def display_explanation(self, plan):
+        self.explain_label.clear()
+        output_str = ""
+        
+        plan = json.loads(plan)
+        root_plan = plan[0]["Plan"]
+        nodes = parse_plan(root_plan)
+        for node in nodes:
+            expected_cost = compute_expected_cost(node, cost_params)
+            print(f"Node: {node['Node Type']}")
+            print(f"  Expected Cost: {expected_cost:.4f}")
+            print(f"  Actual Total Cost: {node['Total Cost']}")
+            print(f"  Discrepancy: {node['Total Cost'] - expected_cost:.4f}\n")
+            output_str += f"Node type: {node['Node Type']}; Expected Cost: {expected_cost:.4f}; Actual Total Cost: {node['Total Cost']}; Discrepancy: {node['Total Cost'] - expected_cost:.4f}\n"
+        self.explain_label.setPlainText(output_str)
 
     def add_nodes_edges(self, node, parent_graphics_item=None, x=0, y=0, y_step=50, depth=0):
         # Define horizontal offset
@@ -176,21 +199,6 @@ class MainWindow(QMainWindow):
             for index, subplan in enumerate(node['Plans']):
                 new_x = x + (index - 0.5) * 2 * child_offset  # Position children with offset
                 self.add_nodes_edges(subplan, node_graphics_item, new_x, y + y_step, y_step, depth + 1)
-        
-        # # Create the graphics item for this node
-        # node_graphics_item = GraphNode(node['Node Type'])
-        # node_graphics_item.setPos(x, y)
-        # self.scene.addItem(node_graphics_item)
-
-        # # If this is not the root node, draw an edge from the parent
-        # if parent_graphics_item is not None:
-        #     line = QGraphicsLineItem(parent_graphics_item.x(), parent_graphics_item.y(), x, y)
-        #     self.scene.addItem(line)
-
-        # # Recursively add child nodes
-        # if 'Plans' in node:
-        #     for subplan in node['Plans']:
-        #         self.add_nodes_edges(subplan, node_graphics_item, x + 100, y + y_step, y_step)
 
     def showPlan(self, plan):
         self.scene.clear()  # Clear the scene for a new plan
@@ -205,7 +213,7 @@ class MainWindow(QMainWindow):
         # # Clear the current model
         self.tree_model.removeRows(0, self.tree_model.rowCount())
         
-        # Recursively load the plan nodes into the tree view
+        # Recursively load the plan nodes into the table tree view
         self.load_nodes(plan_dict[0]['Plan'], self.tree_model.invisibleRootItem())
 
         # Expand all nodes in the view for visibility
@@ -216,10 +224,14 @@ class MainWindow(QMainWindow):
         node_item = QStandardItem(node['Node Type'])
         # Additional details can be added in a similar manner
         cost_item = QStandardItem(f"{node['Total Cost']}")
-        rows_item = QStandardItem(f"{node['Plan Rows']}")
-        width_item = QStandardItem(f"{node['Plan Width']}")
+        planned_rows_item = QStandardItem(f"{node['Plan Rows']}")
+        actual_rows_item = QStandardItem(f"{node['Actual Rows']}")
+        # width_item = QStandardItem(f"{node['Plan Width']}")
+        actual_time_item = QStandardItem(f"{node['Actual Total Time']}")
         
-        parent_item.appendRow([node_item, cost_item, rows_item, width_item])
+        
+        parent_item.appendRow([node_item, cost_item, planned_rows_item, actual_rows_item, actual_time_item])
+        # parent_item.appendRow([node_item, cost_item, planned_rows_item, width_item, actual_time_item, actual_rows_item])
         
         # If this node has children (sub-plans), recursively add them
         if 'Plans' in node:
