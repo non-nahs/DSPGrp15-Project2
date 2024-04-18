@@ -1,6 +1,14 @@
 import psycopg2
 import json
 
+cost_params = {
+    'seq_page_cost': 1.0,
+    'random_page_cost': 4.0,
+    'cpu_tuple_cost': 0.01,
+    'cpu_operator_cost': 0.0025,
+    'cpu_index_tuple_cost': 0.005,
+    'cpu_hash_cost': 0.0025
+}
 
 def connect_db():
     """ Modify according to how you set up your database. """
@@ -58,6 +66,8 @@ def extract_nodes(plan, parent_item=None):
         'Total Cost': plan['Total Cost'],
         'Plan Rows': plan['Plan Rows'],
         'Plan Width': plan['Plan Width'],
+        'Actual Total Time': plan['Actual Total Time'],
+        'Actual Rows': plan['Actual Rows'],
         'Plans': []
     }
 
@@ -92,7 +102,7 @@ def extract_node_types(plan):
     if 'Plans' in plan:
         for subplan in plan['Plans']:
             node_types.append(extract_node_types(subplan))
-
+    # return node_types
     return flatten_list(node_types)
 
 
@@ -112,3 +122,64 @@ def get_cost_estimate(node_type):
             return 400
         case _:
             return 500
+
+def parse_plan(plan):
+    
+    print(plan)
+    print(type(plan))
+    
+    nodes = []
+
+    def recurse(node):
+        # Basic node details
+        node_info = {
+            'Node Type': node['Node Type'],
+            'Startup Cost': node['Startup Cost'],
+            'Total Cost': node['Total Cost'],
+            'Plan Rows': node['Plan Rows'],
+            'Plan Width': node['Plan Width'],
+            'Actual Rows': node['Actual Rows'],
+            # 'Relation Name': node['Relation Name'] if 'Relation Name' in node else '',
+            # 'Alias': node['Alias'] if 'Alias' in node else '',
+            # 'Parent Relationship': node['Parent Relationship'] if 'Parent Relationship' in node else None
+        }
+        nodes.append(node_info)
+        
+        # Recursive parse subplans if they exist
+        if 'Plans' in node:
+            for subplan in node['Plans']:
+                recurse(subplan)
+
+    recurse(plan)
+    return nodes
+
+def compute_expected_cost(node, params):
+    if node['Node Type'] == 'Seq Scan':
+        # Assuming each page is read sequentially
+        page_cost = node['Plan Rows'] * params['seq_page_cost'] + node['Plan Rows'] * params['cpu_tuple_cost']
+        return page_cost
+    elif node['Node Type'] == 'Hash Join':
+        # Simplified model: cost of building the hash table plus cost of probing
+        build_cost = node['Plan Rows'] * params['cpu_hash_cost']  # Cost to build hash table
+        probe_cost = node['Actual Rows'] * params['cpu_operator_cost']  # Cost to probe hash table
+        return build_cost + probe_cost
+    elif node['Node Type'] == 'Hash':
+        # Simplified model: cost of building the hash table plus cost of probing
+        build_cost = node['Plan Rows'] * params['cpu_hash_cost']  # Cost to build hash table
+        # probe_cost = node['Actual Rows'] * params['cpu_operator_cost']  # Cost to probe hash table
+        return build_cost
+    return 0
+
+def analyze_qep(json_input):
+    # Load JSON data
+    plan_data = json.loads(json_input)
+    plan = plan_data[0]['Plan']
+
+    # Parse and compute costs
+    nodes = parse_plan(plan)
+    for node in nodes:
+        expected_cost = compute_expected_cost(node, cost_params)
+        print(f"Node: {node['Node Type']}")
+        print(f"  Expected Cost: {expected_cost:.2f}")
+        print(f"  Actual Total Cost: {node['Total Cost']}")
+        print(f"  Discrepancy: {node['Total Cost'] - expected_cost:.2f}\n")
