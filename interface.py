@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QLabel,
+    QMessageBox,
+    QLineEdit,
 )
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import (
@@ -93,6 +95,104 @@ class GraphicsView(QGraphicsView):
             self.setDragMode(QGraphicsView.NoDrag)
         super().mouseReleaseEvent(event)
 
+
+class LoginWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
+
+    def initUI(self):
+        login_layout = QVBoxLayout()
+
+        db_label = QLabel("DB:")
+        self.db_input = QTextEdit()
+        self.db_input.setFixedSize(500, 30)
+        # Create horizontal layout for label and text input
+        db_layout = QHBoxLayout()
+        db_layout.addWidget(db_label)
+        db_layout.addWidget(self.db_input)
+
+        self.user_input_label = QLabel("User:")
+        self.user_input = QTextEdit()
+        self.user_input.setFixedSize(500, 30)
+        # Create horizontal layout for label and text input
+        user_input_layout = QHBoxLayout()
+        user_input_layout.addWidget(self.user_input_label)
+        user_input_layout.addWidget(self.user_input)
+
+        self.pwd_label = QLabel("Password:")
+        self.pwd_input = QLineEdit(self)
+        self.pwd_input.setEchoMode(QLineEdit.Password)
+        # self.pwd_input = QTextEdit()
+        self.pwd_input.setFixedSize(500, 30)
+        # Create horizontal layout for label and text input
+        pwd_layout = QHBoxLayout()
+        pwd_layout.addWidget(self.pwd_label)
+        pwd_layout.addWidget(self.pwd_input)
+
+        self.host_label = QLabel("Host:")
+        self.host_input = QTextEdit()
+        self.host_input.setFixedSize(500, 30)
+        # Create horizontal layout for label and text input
+        host_layout = QHBoxLayout()
+        host_layout.addWidget(self.host_label)
+        host_layout.addWidget(self.host_input)
+
+        port_label = QLabel("Port:")
+        self.port_input = QTextEdit()
+        self.port_input.setFixedSize(500, 30)
+        # Create horizontal layout for label and text input
+        port_layout = QHBoxLayout()
+        port_layout.addWidget(port_label)
+        port_layout.addWidget(self.port_input)
+
+        login_layout.addLayout(db_layout)
+        login_layout.addLayout(user_input_layout)
+        login_layout.addLayout(pwd_layout)
+        login_layout.addLayout(host_layout)
+        login_layout.addLayout(port_layout)
+
+        self.btn_login = QPushButton('Login')
+        self.btn_login.clicked.connect(self.onLogin)
+
+        self.prefill_btn = QPushButton('Prefill')
+        self.prefill_btn.clicked.connect(self.prefill_boxes)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.btn_login)
+        button_layout.addWidget(self.prefill_btn)
+
+        login_layout.addLayout(button_layout)
+
+        self.setLayout(login_layout)
+
+    def onLogin(self):
+        if self.user_input.toPlainText().strip() == "" or self.host_input.toPlainText().strip() == "" or self.db_input.toPlainText().strip() == "" or self.port_input.toPlainText().strip() == "" or self.pwd_input.text().strip() == "":
+            QMessageBox.warning(self, "Warning", "Please fill all the login credentials")
+            return
+
+        user = self.user_input.toPlainText().strip()
+        db = self.db_input.toPlainText().strip()
+        host = self.host_input.toPlainText().strip()
+        port = self.port_input.toPlainText().strip()
+        pwd = self.pwd_input.text().strip()
+        print(pwd)
+        login_credentials(db, user, pwd, host, port)
+        QMessageBox.information(self, "Success", "Login credentials saved!")
+
+        self.open_main_window()
+
+    def prefill_boxes(self):
+        self.db_input.setText("TPC-H")
+        self.user_input.setText("postgres")
+        self.host_input.setText("localhost")
+        self.port_input.setText("5432")
+        self.pwd_input.setText("secret")
+
+    def open_main_window(self):
+        self.close()  # Close the login window
+        self.main_window = MainWindow()
+        self.main_window.show()
 
 class MainWindow(QMainWindow):
     def __init__(self):

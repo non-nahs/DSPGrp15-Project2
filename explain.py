@@ -11,15 +11,40 @@ cost_params = {
     'cpu_hash_cost': 0.0025
 }
 
+database = None
+username = None
+pwd = None
+hostname = None
+portno = None
+
+
+def login_credentials(db, usr, password, host, port):
+    """ Sets up the database login credentials. """
+    global database, username, pwd, hostname, portno
+    database = db
+    username = usr
+    pwd = password
+    hostname = host
+    portno = port
+
 
 def connect_db():
     """ Modify according to how you set up your database. """
+    if not (database and username and pwd and hostname and portno):
+        print("Error: Please provide login credentials.")
+        return None
     return psycopg2.connect(
-        dbname='TPC-H', 
-        user='postgres', 
-        password='secret', 
-        host='localhost', 
-        port='5432')
+        dbname=database,
+        user=username,
+        password=pwd,
+        host=hostname,
+        port=portno
+        # dbname='TPC-H',
+        # user='postgres',
+        # password='secret',
+        # host='localhost',
+        # port='5432'
+    )
 
 
 def explain_query(sql_query):
