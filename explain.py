@@ -202,9 +202,9 @@ def compute_expected_cost(node, params):
     elif node['Node Type'] == 'Nested Loop':
         # Outer plan and inner plan were not saved in the node relationships so no calculations possible for now
         # For Nested Loops, the cost is the outer plan cost plus the inner plan cost multiplied by the number of rows in the outer plan
-        outer_plan_cost = compute_expected_cost(node['Outer Plan'], params)  # This function should be called on the outer plan node
-        inner_plan_cost = compute_expected_cost(node['Inner Plan'], params)  # This function should be called on the inner plan node
-        nested_loop_cost = outer_plan_cost + (inner_plan_cost * node['Outer Plan']['Plan Rows'])
+        # outer_plan_cost = compute_expected_cost(node['Outer Plan'], params)  # This function should be called on the outer plan node
+        # inner_plan_cost = compute_expected_cost(node['Inner Plan'], params)  # This function should be called on the inner plan node
+        # nested_loop_cost = outer_plan_cost + (inner_plan_cost * node['Outer Plan']['Plan Rows'])
         return 0
         # return nested_loop_cost
     elif node['Node Type'] == 'Hash':
