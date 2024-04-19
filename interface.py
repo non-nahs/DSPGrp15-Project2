@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QGraphicsLineItem,
     QTableWidget,
     QTableWidgetItem,
+    QLabel,
 )
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import (
@@ -45,13 +46,13 @@ class GraphNode(QGraphicsItem):
         super().__init__(parent)
         self.label = label
         self.setFlag(QGraphicsItem.ItemIsMovable)
-        
+
         # Add a text item as a child of this item
         self.text_item = QGraphicsTextItem(label, self)
         self.text_item.setDefaultTextColor(QColor("black"))
         self.text_item.setZValue(1)
         rect = self.text_item.boundingRect()
-        
+
         # Optionally add an ellipse or rectangle around the text
         self.background_item = QGraphicsEllipseItem(-(rect.width()+20)/2, -(rect.height()+20)/2, rect.width()+20, rect.height()+20, self)
         self.background_item.setBrush(QBrush(QColor('white')))
@@ -130,28 +131,35 @@ class MainWindow(QMainWindow):
         self.btn_submit.clicked.connect(self.onSubmit)
         right_layout.addWidget(self.btn_submit)
 
+        self.tree_label = QLabel("Query Execution Plan:")
+
         self.tree_view = QTreeView()
         self.tree_model = QStandardItemModel()
-        self.tree_model.setHorizontalHeaderLabels(['Node', 'Cost', 'Planned Rows', 'Actual Rows', 'Actual Total Time'])
+        header_labels = ['Node', 'Cost', 'Planned Rows', 'Actual Rows', 'Actual Total Time (ms)']
+        self.tree_model.setHorizontalHeaderLabels(header_labels)
         self.tree_view.setModel(self.tree_model)
-        right_layout.addWidget(self.tree_view)
 
-        self.explain_label = QTextEdit("Query Execution Plan:")
-        self.explain_label.setReadOnly(True)
+        self.explain_label = QLabel("Query Execution Plan Explanation:")
 
         self.explain_table = QTableWidget()
+        self.explain_table.setColumnCount(4)
+        self.explain_table.setHorizontalHeaderLabels(['Node Type', 'Expected Cost', 'Actual Cost', 'Discrepancy'])
         self.explain_table.setEditTriggers(QTableWidget.NoEditTriggers)
 
+        right_layout.addWidget(self.tree_label)
+        right_layout.addWidget(self.tree_view)
+        right_layout.addWidget(self.explain_label)
         right_layout.addWidget(self.explain_table)
 
         main_layout.addLayout(left_layout)
         main_layout.addLayout(right_layout)
 
+        self.statusBar().showMessage("Ready")
+
     def onSubmit(self):
         self.explain_label.setStyleSheet("color: white;")
         if self.query_input.toPlainText().strip() == "":
-            self.explain_label.setPlainText("Please enter a query to explain.")
-            self.explain_label.setStyleSheet("color: red;")
+            self.statusBar().showMessage("Please enter a query to explain.")
             return
         # costs_list = []
 
@@ -197,7 +205,7 @@ class MainWindow(QMainWindow):
     def add_nodes_edges(self, node, parent_graphics_item=None, x=0, y=0, y_step=50, depth=0):
         # Define horizontal offset
         x_offset = 200 // (depth + 1)
-        
+
         # Create the graphics item for this node
         node_graphics_item = GraphNode(node['Node Type'])
         node_graphics_item.setPos(x, y)
@@ -226,7 +234,7 @@ class MainWindow(QMainWindow):
         self.add_nodes_edges(root_node)  # Pass the root node of the plan
 
         self.view.fitInView(self.scene.itemsBoundingRect(), Qt.KeepAspectRatio)  # Fit the scene in the view
-        
+
         # plan_dict = json.loads(plan)
         # # Clear the current model
         self.tree_model.removeRows(0, self.tree_model.rowCount())
@@ -270,16 +278,15 @@ class MainWindow(QMainWindow):
 
         self.table_widget.resizeColumnsToContents()
 
+        self.statusBar().showMessage("Query executed successfully. Total rows: " + str(sql_query_results.shape[0]))
+
     def update_explain_table(self, plan):
-        self.explain_label.clear()
 
         plan = json.loads(plan)
         root_plan = plan[0]["Plan"]
         nodes = parse_plan(root_plan)
 
         self.explain_table.setRowCount(len(nodes))
-        self.explain_table.setColumnCount(4)
-        self.explain_table.setHorizontalHeaderLabels(['Node Type', 'Expected Cost', 'Actual Cost', 'Discrepancy'])
 
         for i, node in enumerate(nodes):
             expected_cost = compute_expected_cost(node, cost_params)

@@ -32,7 +32,7 @@ def explain_query(sql_query):
         cursor.execute(explain_sql)
         result = cursor.fetchall()
         plan_json = json.dumps(result[0][0])
-        print(json.dumps(result[0][0], indent=4))
+        # print(json.dumps(result[0][0], indent=4))
         return plan_json
         # execution_plan = json.loads(result)
         # plan_nodes = extract_nodes(execution_plan[0][0]['Plan'])
@@ -56,6 +56,8 @@ def query_to_dataframe(sql_query):
         col_names = [desc[0] for desc in cursor.description]
 
         df = pd.DataFrame(rows, columns=col_names)
+        df.dropna(axis=1, how='all', inplace=True)
+
         return df
 
     except (Exception, psycopg2.DatabaseError) as error:
