@@ -1,3 +1,4 @@
+import pandas as pd
 import psycopg2
 import json
 
@@ -9,6 +10,7 @@ cost_params = {
     'cpu_index_tuple_cost': 0.005,
     'cpu_hash_cost': 0.0025
 }
+
 
 def connect_db():
     """ Modify according to how you set up your database. """
@@ -39,6 +41,26 @@ def explain_query(sql_query):
         # return analyze_costs(result)
     except Exception as e:
         return f"Error executing query: {str(e)}"
+    finally:
+        cursor.close()
+        db_conn.close()
+
+
+def query_to_dataframe(sql_query):
+    db_conn = connect_db()
+    cursor = db_conn.cursor()
+
+    try:
+        cursor.execute(sql_query)
+        rows = cursor.fetchall()
+        col_names = [desc[0] for desc in cursor.description]
+
+        df = pd.DataFrame(rows, columns=col_names)
+        return df
+
+    except (Exception, psycopg2.DatabaseError) as error:
+        print("Error:", error)
+        return None
     finally:
         cursor.close()
         db_conn.close()
@@ -106,28 +128,9 @@ def extract_node_types(plan):
     return flatten_list(node_types)
 
 
-def get_cost_estimate(node_type):
-    match node_type:
-        case 'Seq Scan':
-            # B(R)
-            return 100
-        case 'Index Scan':
-            # B(R) + log2(B(R))
-            return 200
-        case 'Hash Join':
-            # B(R) + B(S)
-            return 300
-        case 'Nested Loop':
-            # B(R) * B(S)
-            return 400
-        case _:
-            return 500
-
 def parse_plan(plan):
-    
-    print(plan)
-    print(type(plan))
-    
+    # print(plan)
+    # print(type(plan))
     nodes = []
 
     def recurse(node):
@@ -153,6 +156,7 @@ def parse_plan(plan):
     recurse(plan)
     return nodes
 
+
 def compute_expected_cost(node, params):
     if node['Node Type'] == 'Seq Scan':
         # Assuming each page is read sequentially
@@ -170,6 +174,7 @@ def compute_expected_cost(node, params):
         return build_cost
     return 0
 
+
 def analyze_qep(json_input):
     # Load JSON data
     plan_data = json.loads(json_input)
@@ -180,6 +185,6 @@ def analyze_qep(json_input):
     for node in nodes:
         expected_cost = compute_expected_cost(node, cost_params)
         print(f"Node: {node['Node Type']}")
-        print(f"  Expected Cost: {expected_cost:.2f}")
-        print(f"  Actual Total Cost: {node['Total Cost']}")
-        print(f"  Discrepancy: {node['Total Cost'] - expected_cost:.2f}\n")
+        print(f"Expected: {expected_cost:.2f}")
+        print(f"Actual: {node['Total Cost']}")
+        print(f"Discrepancy: {node['Total Cost'] - expected_cost:.2f}\n")
