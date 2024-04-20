@@ -53,7 +53,7 @@ def explain_query(sql_query):
     cursor = db_conn.cursor()
     try:
         # Adjust the EXPLAIN command according to your needs
-        explain_sql = f"EXPLAIN (FORMAT JSON, ANALYZE) {sql_query};"
+        explain_sql = f"EXPLAIN (FORMAT JSON, ANALYZE, BUFFERS) {sql_query};"
         cursor.execute(explain_sql)
         result = cursor.fetchall()
         plan_json = json.dumps(result[0][0])
@@ -169,6 +169,9 @@ def parse_plan(plan):
             'Plan Rows': node['Plan Rows'],
             'Plan Width': node['Plan Width'],
             'Actual Rows': node['Actual Rows'],
+            'Shared Hit Blocks': node['Shared Hit Blocks'],
+            'Shared Read Blocks': node['Shared Read Blocks'],
+            'Shared Written Blocks': node['Shared Written Blocks'],
             # 'Relation Name': node['Relation Name'] if 'Relation Name' in node else '',
             # 'Alias': node['Alias'] if 'Alias' in node else '',
             # 'Parent Relationship': node['Parent Relationship'] if 'Parent Relationship' in node else None
@@ -183,39 +186,81 @@ def parse_plan(plan):
     recurse(plan)
     return nodes
 
+# def compute_expected_cost(node, params):
+#     # To update those cases with return 0
+#     if node['Node Type'] == 'Seq Scan':
+#         # Assuming each page is read sequentially
+#         page_cost = node['Plan Rows'] * params['seq_page_cost'] + node['Plan Rows'] * params['cpu_tuple_cost']
+#         return page_cost
+#     elif node['Node Type'] == 'Index Scan':
+#         # Cost per index scan typically involves random page cost due to random access nature of indexes
+#         index_scan_cost = node['Plan Rows'] * params['random_page_cost'] + node['Plan Rows'] * params['cpu_index_tuple_cost']
+#         return index_scan_cost
+#     elif node['Node Type'] == 'Hash Join':
+#         # Simplified model: cost of building the hash table plus cost of probing
+#         build_cost = node['Plan Rows'] * params['cpu_hash_cost']  # Cost to build hash table
+#         probe_cost = node['Actual Rows'] * params['cpu_operator_cost']  # Cost to probe hash table
+#         return build_cost + probe_cost
+#     elif node['Node Type'] == 'Nested Loop':
+#         # Outer plan and inner plan were not saved in the node relationships so no calculations possible for now
+#         # For Nested Loops, the cost is the outer plan cost plus the inner plan cost multiplied by the number of rows in the outer plan
+#         # outer_plan_cost = compute_expected_cost(node['Outer Plan'], params)  # This function should be called on the outer plan node
+#         # inner_plan_cost = compute_expected_cost(node['Inner Plan'], params)  # This function should be called on the inner plan node
+#         # nested_loop_cost = outer_plan_cost + (inner_plan_cost * node['Outer Plan']['Plan Rows'])
+#         return 0
+#         # return nested_loop_cost
+#     elif node['Node Type'] == 'Hash':
+#         # Simplified model: cost of building the hash table plus cost of probing
+#         build_cost = node['Plan Rows'] * params['cpu_hash_cost']  # Cost to build hash table
+#         # probe_cost = node['Actual Rows'] * params['cpu_operator_cost']  # Cost to probe hash table
+#         return build_cost
+#     elif node['Node Type'] == 'Memoize':
+#         # Assuming memoization involves a fixed cost for cache lookup and a variable cost if a cache miss occurs
+#         cache_lookup_cost = params['cpu_operator_cost']  # Cost for looking up in the cache
+#         cache_miss_cost = node['Plan Rows'] * params['cpu_operator_cost']  # Assume each miss incurs some cost
+#         memoize_cost = cache_lookup_cost + cache_miss_cost
+#         return memoize_cost
+#     return 0
+
 
 def compute_expected_cost(node, params):
     # To update those cases with return 0
+    total_blocks_accessed = (
+    node['Shared Hit Blocks'] +
+    node['Shared Read Blocks'] +
+    node['Shared Written Blocks']
+)
     if node['Node Type'] == 'Seq Scan':
         # Assuming each page is read sequentially
-        page_cost = node['Plan Rows'] * params['seq_page_cost'] + node['Plan Rows'] * params['cpu_tuple_cost']
+        page_cost =  total_blocks_accessed * params['seq_page_cost'] + node['Plan Rows'] * params['cpu_tuple_cost']
         return page_cost
     elif node['Node Type'] == 'Index Scan':
         # Cost per index scan typically involves random page cost due to random access nature of indexes
-        index_scan_cost = node['Plan Rows'] * params['random_page_cost'] + node['Plan Rows'] * params['cpu_index_tuple_cost']
+        index_scan_cost =  total_blocks_accessed * params['random_page_cost'] + node['Plan Rows'] * params['cpu_index_tuple_cost']
         return index_scan_cost
     elif node['Node Type'] == 'Hash Join':
         # Simplified model: cost of building the hash table plus cost of probing
-        build_cost = node['Plan Rows'] * params['cpu_hash_cost']  # Cost to build hash table
-        probe_cost = node['Actual Rows'] * params['cpu_operator_cost']  # Cost to probe hash table
-        return build_cost + probe_cost
+        # build_cost = node['Shared Hit Blocks'] * params['cpu_hash_cost']  # Cost to build hash table
+        probe_cost =  total_blocks_accessed * params['seq_page_cost'] +node['Plan Rows'] * (params['cpu_hash_cost'] + params['cpu_operator_cost'])  # Cost to probe hash table
+        return probe_cost
     elif node['Node Type'] == 'Nested Loop':
         # Outer plan and inner plan were not saved in the node relationships so no calculations possible for now
         # For Nested Loops, the cost is the outer plan cost plus the inner plan cost multiplied by the number of rows in the outer plan
         # outer_plan_cost = compute_expected_cost(node['Outer Plan'], params)  # This function should be called on the outer plan node
         # inner_plan_cost = compute_expected_cost(node['Inner Plan'], params)  # This function should be called on the inner plan node
         # nested_loop_cost = outer_plan_cost + (inner_plan_cost * node['Outer Plan']['Plan Rows'])
-        return 0
-        # return nested_loop_cost
+        nested_loop_cost =   total_blocks_accessed* params['seq_page_cost'] +node['Plan Rows'] * params['cpu_operator_cost'] 
+        # return 0  
+        return nested_loop_cost
     elif node['Node Type'] == 'Hash':
         # Simplified model: cost of building the hash table plus cost of probing
-        build_cost = node['Plan Rows'] * params['cpu_hash_cost']  # Cost to build hash table
+        build_cost =  total_blocks_accessed* params['seq_page_cost'] +  (node['Plan Rows']* params['cpu_hash_cost']) # Cost to build hash table
         # probe_cost = node['Actual Rows'] * params['cpu_operator_cost']  # Cost to probe hash table
         return build_cost
     elif node['Node Type'] == 'Memoize':
         # Assuming memoization involves a fixed cost for cache lookup and a variable cost if a cache miss occurs
         cache_lookup_cost = params['cpu_operator_cost']  # Cost for looking up in the cache
-        cache_miss_cost = node['Plan Rows'] * params['cpu_operator_cost']  # Assume each miss incurs some cost
+        cache_miss_cost = node['Shared Hit Blocks'] * params['cpu_operator_cost']  # Assume each miss incurs some cost
         memoize_cost = cache_lookup_cost + cache_miss_cost
         return memoize_cost
     return 0
