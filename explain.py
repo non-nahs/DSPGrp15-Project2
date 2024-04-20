@@ -260,7 +260,7 @@ def compute_expected_cost(node, params):
     elif node['Node Type'] == 'Memoize':
         # Assuming memoization involves a fixed cost for cache lookup and a variable cost if a cache miss occurs
         cache_lookup_cost = params['cpu_operator_cost']  # Cost for looking up in the cache
-        cache_miss_cost = node['Shared Hit Blocks'] * params['cpu_operator_cost']  # Assume each miss incurs some cost
+        cache_miss_cost = node['Plan Rows'] * params['cpu_operator_cost']  # Assume each miss incurs some cost
         memoize_cost = cache_lookup_cost + cache_miss_cost
         return memoize_cost
     return 0
