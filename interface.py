@@ -268,21 +268,9 @@ class MainWindow(QMainWindow):
 
         self.showPlan(plan)
 
-        # self.display_explanation(plan)
-
         self.update_result_table(sql_query)
         self.update_explain_table(plan)
 
-        # types = extract_node_types(json.loads(plan)[0]['Plan'])
-
-        # for node_type in types:
-        #     costs_list.append(get_cost_estimate(node_type))
-        
-        # 
-        # formatted_plan = format_plan(plan)
-        # self.showPlan(formatted_plan)
-        # explanation = explain_query(sql_query)
-        # self.result_display.setPlainText(plan)
 
     def display_explanation(self, plan):
         self.explain_label.clear()
@@ -335,7 +323,6 @@ class MainWindow(QMainWindow):
 
         self.view.fitInView(self.scene.itemsBoundingRect(), Qt.KeepAspectRatio)  # Fit the scene in the view
 
-        # plan_dict = json.loads(plan)
         # # Clear the current model
         self.tree_model.removeRows(0, self.tree_model.rowCount())
         
@@ -358,7 +345,6 @@ class MainWindow(QMainWindow):
         actual_time_item = QStandardItem(f"{node['Actual Total Time']}")
         
         parent_item.appendRow([node_item, cost_item, planned_rows_item, actual_rows_item, actual_time_item])
-        # parent_item.appendRow([node_item, cost_item, planned_rows_item, width_item, actual_time_item, actual_rows_item])
         
         # If this node has children (sub-plans), recursively add them
         if 'Plans' in node:

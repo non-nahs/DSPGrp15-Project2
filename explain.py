@@ -57,13 +57,7 @@ def explain_query(sql_query):
         cursor.execute(explain_sql)
         result = cursor.fetchall()
         plan_json = json.dumps(result[0][0])
-        # print(json.dumps(result[0][0], indent=4))
         return plan_json
-        # execution_plan = json.loads(result)
-        # plan_nodes = extract_nodes(execution_plan[0][0]['Plan'])
-        # print(f"Query processed, plan generated")
-        # return plan_nodes
-        # return analyze_costs(result)
     except Exception as e:
         return f"Error executing query: {str(e)}"
     finally:
